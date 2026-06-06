@@ -18,6 +18,7 @@ from typing import Any
 
 from meridian.agent.task_state import TaskState, TaskStatus
 from meridian.observability.tracing import SpanRecord, TraceSink
+from meridian.security.quarantine import wrap_issue_text
 from meridian.tools.context import ToolContext
 
 # Default runner is the real SDK query; injectable for tests.
@@ -43,7 +44,7 @@ def _initial_prompt(state: TaskState) -> str:
     return (
         "Resolve the following issue. Current task state:\n\n"
         f"{state.render_context()}\n"
-        f"ISSUE:\n{state.goal}\n"
+        f"ISSUE:\n{wrap_issue_text(state.goal)}\n"
     )
 
 
