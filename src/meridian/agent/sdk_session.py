@@ -13,6 +13,7 @@ from typing import Any
 
 from claude_agent_sdk import ClaudeAgentOptions, PermissionResultDeny
 
+from meridian.agent.subagents import build_security_subagent_definition
 from meridian.config import get_settings
 from meridian.security.hooks import build_security_hooks
 from meridian.tools.context import ToolContext
@@ -74,6 +75,7 @@ def build_options(ctx: ToolContext, registry: ToolRegistry) -> ClaudeAgentOption
         disallowed_tools=_BLOCKED_BUILTINS,
         can_use_tool=_deny_non_registry,
         hooks=build_security_hooks(),  # type: ignore[arg-type]  # W1: path-guard + secret-scrub
+        agents={"security_reviewer": build_security_subagent_definition()},  # W3
         permission_mode="default",
         model=s.model,
         fallback_model=s.fallback_model,
