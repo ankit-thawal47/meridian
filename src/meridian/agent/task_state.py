@@ -84,15 +84,18 @@ class TaskState(BaseModel):
         """Compact, budgeted text snapshot injected into the agent each turn.
 
         Only structured conclusions appear here — never raw tool output.
-        Findings are capped so the snapshot stays within its token region.
+        Findings are capped by count and the region is truncated to its token
+        ceiling via RegionBudget, so the snapshot can never grow unbounded.
         """
+        from meridian.context.budget import RegionBudget
+
         plan_lines = (
             "\n".join(f"  [{'x' if s.done else ' '}] {s.description}" for s in self.plan)
             or "  (no plan yet)"
         )
         recent = self.findings[-max_findings:]
         finding_lines = "\n".join(f"  - ({f.source}) {f.summary}" for f in recent) or "  (none)"
-        return (
+        rendered = (
             f"GOAL: {self.goal}\n"
             f"REPO: {self.repo}  ISSUE: {self.issue_ref}\n"
             f"STATUS: {self.status.value}  TURNS: {self.turns}  COST_USD: {self.cost_usd:.3f}\n"
@@ -101,3 +104,4 @@ class TaskState(BaseModel):
             f"TESTS_RUN: {', '.join(self.tests_run) or '(none)'}\n"
             f"FINDINGS (last {len(recent)}):\n{finding_lines}\n"
         )
+        return RegionBudget().allocate("task_state", rendered)

@@ -11,12 +11,12 @@ Meridian is a *system with five properties*, not a feature list — see
 | Property | Where it lives |
 |---|---|
 | 1. Model-driven tool selection | `tools/registry.py`, `worker/orchestrator.py` |
-| 2. Genuine subagent isolation | `repo/workspace.py`, `tools/context.py` (Phase 1: `subagents/`) |
+| 2. Genuine subagent isolation | `repo/workspace.py`, `tools/context.py`, `agent/subagents.py`, `security/hooks.py` |
 | 3. Long-horizon coherence | `agent/task_state.py` |
-| 4. Production scaffolding | `observability/tracing.py`, SDK budget ceilings in `agent/sdk_session.py` |
+| 4. Production scaffolding | `observability/tracing.py`, `reliability/retry.py`, `reliability/circuit.py`, SDK budget ceilings in `agent/sdk_session.py` |
 | 5. Composable tool chains | `tools/schemas.py`, `tools/core_ops.py` |
 
-## Architecture (Phase 0)
+## Architecture
 
 ```
 POST /tasks ──> intake ──> arq queue (Redis) ──> worker
@@ -45,7 +45,7 @@ export ANTHROPIC_API_KEY=sk-ant-...
 make api                  # http://localhost:8000  (docs at /docs)
 make worker
 
-# 4. submit a task against a LOCAL repo path (Phase 0)
+# 4. submit a task against a LOCAL repo path
 curl -s localhost:8000/tasks -H 'content-type: application/json' -d '{
   "repo": "/abs/path/to/toy-repo",
   "issue_ref": "#1",
@@ -70,9 +70,15 @@ stream); SDK-gated tests auto-skip when `claude-agent-sdk` is absent.
 
 ## Status
 
-Phase 0 (walking skeleton) — control plane, arq worker, SDK agent loop with five
-typed namespaced tools, authoritative `TaskState`, trace persistence. Phases 1–5
-(isolation, scaffolding, composability, scale, hardening) are in `Plans/`.
+Implemented: control plane, arq worker, and the SDK agent loop with ten typed
+namespaced tools, authoritative `TaskState` with region-budgeted context, and
+trace persistence. On top of the skeleton the security layer (CaMeL issue-text
+quarantine, path-guard and secret-scrub hooks), the reliability layer (transient
+vs terminal retry classification with Full Jitter backoff and a circuit
+breaker), genuine subagent isolation (read-only `SecuritySubagent` with a scoped
+tool set), VCS tools (branch/commit/PR), GitHub webhook intake, model routing
+with OTel GenAI spans and deterministic replay, an eval harness, and contract
+tests are in place. Remaining hardening items are tracked in `Plans/`.
 
 > Scale targets in `PRD.md` §4/§12 carry `[A]` placeholders pending the
 > assignment's concrete numbers.

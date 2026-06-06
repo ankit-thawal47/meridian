@@ -59,7 +59,9 @@ def _blocks(msg: Any) -> list[Any]:
     return content if isinstance(content, list) else []
 
 
-async def _handle_message(state: TaskState, msg: Any, sink: TraceSink | None) -> None:
+async def _handle_message(
+    state: TaskState, msg: Any, sink: TraceSink | None, settings: Any | None = None
+) -> None:
     # Assistant turn: count it and emit spans for text + tool selections.
     if type(msg).__name__ == "AssistantMessage" or _blocks(msg):
         state.turns += 1
@@ -69,7 +71,20 @@ async def _handle_message(state: TaskState, msg: Any, sink: TraceSink | None) ->
                 tool_input = getattr(block, "input", {})
                 summary = f"{name}({', '.join(map(str, (tool_input or {}).keys()))})"
                 if sink:
-                    await sink.record(SpanRecord(state.task_id, "tool_call", str(name), summary))
+                    attributes: dict[str, Any] = {"gen_ai.operation.name": "execute_tool"}
+                    if settings is not None:
+                        from meridian.agent.routing import route_model
+
+                        attributes["gen_ai.request.model"] = route_model(str(name), settings)
+                    await sink.record(
+                        SpanRecord(
+                            state.task_id,
+                            "tool_call",
+                            str(name),
+                            summary,
+                            attributes=attributes,
+                        )
+                    )
             else:
                 text = getattr(block, "text", None)
                 if text and sink:
@@ -103,13 +118,14 @@ async def _run_with_retry(
     state: TaskState,
     sink: TraceSink | None,
     policy: RetryPolicy,
+    settings: Any | None = None,
 ) -> Any:
     """Run the SDK loop with transient-only retry + Full Jitter backoff."""
     final: Any | None = None
     for attempt in range(policy.max_attempts):
         try:
             async for msg in runner(prompt=prompt, options=options):
-                await _handle_message(state, msg, sink)
+                await _handle_message(state, msg, sink, settings)
                 if _is_result(msg):
                     final = msg
             return final  # success
@@ -137,15 +153,15 @@ async def run_task(
     from meridian.tools.registry import build_registry
 
     runner = runner or _default_runner
+    settings = get_settings()
     registry = build_registry(ctx)
     options = build_options(ctx, registry)
 
     if policy is None:
-        s = get_settings()
         policy = RetryPolicy(
-            max_attempts=s.retry_max_attempts,
-            base_s=s.retry_base_s,
-            cap_s=s.retry_cap_s,
+            max_attempts=settings.retry_max_attempts,
+            base_s=settings.retry_base_s,
+            cap_s=settings.retry_cap_s,
         )
 
     ctx.state.status = TaskStatus.running
@@ -156,6 +172,7 @@ async def run_task(
         ctx.state,
         sink,
         policy,
+        settings,
     )
 
     result = _finalize(ctx.state, final)

@@ -1,0 +1,13 @@
+{
+  "issue_ref": "eval-001",
+  "goal": "The add() function returns a-b instead of a+b. Fix it and make tests pass.",
+  "repo_files": {
+    "add.py": "def add(a, b):\n    return a - b\n",
+    "test_add.py": "from add import add\ndef test_add(): assert add(2, 3) == 5\n"
+  },
+  "expected_outcomes": {
+    "test_passes": true,
+    "pr_opened": true,
+    "files_modified": ["add.py"]
+  }
+}

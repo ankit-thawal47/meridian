@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Protocol
+from typing import Any, Protocol
 
 
 def _now() -> datetime:
@@ -25,6 +25,13 @@ class SpanRecord:
     cost_usd: float = 0.0
     outcome: str = "ok"
     ts: datetime = field(default_factory=_now)
+    duration_ms: float = 0.0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    # OTel GenAI semantic-convention attributes, e.g. "gen_ai.request.model",
+    # "gen_ai.usage.input_tokens", "gen_ai.usage.output_tokens",
+    # "gen_ai.operation.name".
+    attributes: dict[str, Any] = field(default_factory=dict)
 
 
 class TraceSink(Protocol):

@@ -19,6 +19,7 @@ from claude_agent_sdk import create_sdk_mcp_server
 
 from meridian.tools.context import ToolContext
 from meridian.tools.core_tools import CORE_TOOL_NAMES, build_core_tools
+from meridian.tools.retrieval import count_guard
 
 SERVER_NAME = "meridian"
 
@@ -31,6 +32,7 @@ class ToolRegistry:
 
 def build_registry(ctx: ToolContext) -> ToolRegistry:
     tools = build_core_tools(ctx)
+    count_guard(tools)
     server = create_sdk_mcp_server(name=SERVER_NAME, version="0.1.0", tools=tools)
     names = [f"mcp__{SERVER_NAME}__{n}" for n in CORE_TOOL_NAMES]
     return ToolRegistry(server=server, tool_names=names)

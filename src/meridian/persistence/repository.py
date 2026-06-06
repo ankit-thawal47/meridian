@@ -25,6 +25,14 @@ async def get_task(session: AsyncSession, task_id: str) -> Task | None:
     return await session.get(Task, task_id)
 
 
+async def get_task_by_ref(session: AsyncSession, *, repo: str, issue_ref: str) -> Task | None:
+    """Idempotency lookup: the existing task for a (repo, issue_ref) pair, if any."""
+    rows = await session.execute(
+        select(Task).where(Task.repo == repo, Task.issue_ref == issue_ref).limit(1)
+    )
+    return rows.scalars().first()
+
+
 async def get_spans(session: AsyncSession, task_id: str) -> list[TraceSpan]:
     rows = await session.execute(
         select(TraceSpan).where(TraceSpan.task_id == task_id).order_by(TraceSpan.id)
