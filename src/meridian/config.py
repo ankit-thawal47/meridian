@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     github_app_id: str = ""
     github_webhook_secret: str = ""
     github_private_key_path: str = ""
+    github_token: str = Field(
+        "", validation_alias=AliasChoices("github_token", "MERIDIAN_GITHUB_TOKEN")
+    )
 
 
 @lru_cache

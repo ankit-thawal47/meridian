@@ -25,10 +25,9 @@ from .conftest import make_state  # noqa: E402
 def test_registry_builds_expected_names(tmp_path: Any) -> None:
     ctx = ToolContext(workspace=tmp_path, state=make_state())
     reg = build_registry(ctx)
-    assert reg.tool_names == [
-        f"mcp__meridian__{n}"
-        for n in ["repo_read", "repo_search", "edit_apply", "exec_test", "state_update"]
-    ]
+    from meridian.tools.core_tools import CORE_TOOL_NAMES
+
+    assert reg.tool_names == [f"mcp__meridian__{n}" for n in CORE_TOOL_NAMES]
     assert reg.server is not None
 
 
