@@ -53,6 +53,17 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("workspace_dir", "MERIDIAN_WORKSPACE_DIR"),
     )
 
+    # Retry policy (Property 4 — W2). Transient SDK failures only.
+    retry_max_attempts: int = Field(
+        3, validation_alias=AliasChoices("retry_max_attempts", "MERIDIAN_RETRY_MAX_ATTEMPTS")
+    )
+    retry_base_s: float = Field(
+        1.0, validation_alias=AliasChoices("retry_base_s", "MERIDIAN_RETRY_BASE_S")
+    )
+    retry_cap_s: float = Field(
+        30.0, validation_alias=AliasChoices("retry_cap_s", "MERIDIAN_RETRY_CAP_S")
+    )
+
     # GitHub App (Phase 4 intake)
     github_app_id: str = ""
     github_webhook_secret: str = ""

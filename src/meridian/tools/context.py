@@ -11,6 +11,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from meridian.agent.task_state import TaskState
 
@@ -24,6 +25,8 @@ class ToolContext:
         self.workspace = Path(self.workspace).resolve()
         self._blobs = self.workspace / ".meridian" / "blobs"
         self._blobs.mkdir(parents=True, exist_ok=True)
+        # Idempotency cache: (tool, args) digest → prior ToolOutcome dict (Property 4 / W2).
+        self._call_cache: dict[str, Any] = {}
 
     def safe_path(self, rel: str) -> Path:
         """Resolve ``rel`` and guarantee it stays inside the workspace.
@@ -41,3 +44,9 @@ class ToolContext:
         ref = f"blob:{uuid.uuid4().hex}"
         (self._blobs / ref.split(":", 1)[1]).write_text(text)
         return ref
+
+    def get_cached(self, key: str) -> Any | None:
+        return self._call_cache.get(key)
+
+    def set_cached(self, key: str, result: Any) -> None:
+        self._call_cache[key] = result

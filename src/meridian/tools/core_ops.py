@@ -9,6 +9,8 @@ runtime (Property 4 — reproducible, verifiable scaffolding).
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import shutil
 from typing import Any
 
@@ -24,6 +26,12 @@ from meridian.tools.schemas import (
 )
 
 MAX_FILE_CHARS = 60_000
+
+
+def _call_key(tool: str, args: dict[str, Any]) -> str:
+    """Short digest used as the idempotency cache key."""
+    payload = json.dumps({"tool": tool, "args": args}, sort_keys=True)
+    return hashlib.sha256(payload.encode()).hexdigest()[:16]
 
 
 def ok(summary: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -99,6 +107,11 @@ async def op_repo_search(ctx: ToolContext, args: dict[str, Any]) -> dict[str, An
 
 
 async def op_edit_apply(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    key = _call_key("edit_apply", args)
+    cached = ctx.get_cached(key)
+    if cached is not None:
+        return cached
+
     try:
         p = ctx.safe_path(args["path"])
     except ValueError as e:
@@ -114,11 +127,18 @@ async def op_edit_apply(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any
         return err(f"old_string not unique ({count} matches)", deterministic=True)
     p.write_text(text.replace(old, args["new_string"], 1))
     ctx.state.touch_file(args["path"])
-    return ok(f"edited {args['path']}", EditResult(path=args["path"], applied=True).model_dump())
+    result = ok(f"edited {args['path']}", EditResult(path=args["path"], applied=True).model_dump())
+    ctx.set_cached(key, result)
+    return result
 
 
 async def op_exec_test(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     command = args.get("command") or "pytest -q"
+    key = _call_key("exec_test", {"command": command})
+    cached = ctx.get_cached(key)
+    if cached is not None:
+        return cached
+
     proc = await asyncio.create_subprocess_shell(
         command,
         cwd=str(ctx.workspace),
@@ -138,7 +158,9 @@ async def op_exec_test(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]
         stdout_ref=ref,
         exit_code=proc.returncode,
     )
-    return ok(f"`{command}` -> {'PASS' if passed else 'FAIL'}", test_result.model_dump())
+    result = ok(f"`{command}` -> {'PASS' if passed else 'FAIL'}", test_result.model_dump())
+    ctx.set_cached(key, result)
+    return result
 
 
 async def op_state_update(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:

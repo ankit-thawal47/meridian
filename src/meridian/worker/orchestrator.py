@@ -12,12 +12,14 @@ plain stub objects.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from typing import Any
 
 from meridian.agent.task_state import TaskState, TaskStatus
 from meridian.observability.tracing import SpanRecord, TraceSink
+from meridian.reliability.retry import FailureKind, RetryPolicy, classify_exception, full_jitter
 from meridian.security.quarantine import wrap_issue_text
 from meridian.tools.context import ToolContext
 
@@ -94,28 +96,67 @@ def _finalize(state: TaskState, final: Any | None) -> OrchestratorResult:
     return OrchestratorResult(state.status, turns, cost, summary, state)
 
 
+async def _run_with_retry(
+    runner: Runner,
+    prompt: str,
+    options: Any,
+    state: TaskState,
+    sink: TraceSink | None,
+    policy: RetryPolicy,
+) -> Any:
+    """Run the SDK loop with transient-only retry + Full Jitter backoff."""
+    final: Any | None = None
+    for attempt in range(policy.max_attempts):
+        try:
+            async for msg in runner(prompt=prompt, options=options):
+                await _handle_message(state, msg, sink)
+                if _is_result(msg):
+                    final = msg
+            return final  # success
+        except Exception as exc:
+            kind = classify_exception(exc)
+            if kind == FailureKind.terminal or attempt == policy.max_attempts - 1:
+                raise
+            delay = full_jitter(attempt, policy.base_s, policy.cap_s)
+            await asyncio.sleep(delay)
+    return final  # unreachable, but satisfies type checker
+
+
 async def run_task(
     ctx: ToolContext,
     *,
     runner: Runner | None = None,
     sink: TraceSink | None = None,
     prompt: str | None = None,
+    policy: RetryPolicy | None = None,
 ) -> OrchestratorResult:
     # SDK-dependent builders imported lazily so the orchestrator's pure message
     # handling (_handle_message/_finalize) stays importable/testable without the SDK.
     from meridian.agent.sdk_session import build_options
+    from meridian.config import get_settings
     from meridian.tools.registry import build_registry
 
     runner = runner or _default_runner
     registry = build_registry(ctx)
     options = build_options(ctx, registry)
 
+    if policy is None:
+        s = get_settings()
+        policy = RetryPolicy(
+            max_attempts=s.retry_max_attempts,
+            base_s=s.retry_base_s,
+            cap_s=s.retry_cap_s,
+        )
+
     ctx.state.status = TaskStatus.running
-    final: Any | None = None
-    async for msg in runner(prompt=prompt or _initial_prompt(ctx.state), options=options):
-        await _handle_message(ctx.state, msg, sink)
-        if _is_result(msg):
-            final = msg
+    final = await _run_with_retry(
+        runner,
+        prompt or _initial_prompt(ctx.state),
+        options,
+        ctx.state,
+        sink,
+        policy,
+    )
 
     result = _finalize(ctx.state, final)
     if sink:
