@@ -95,6 +95,56 @@ class PRDraft(BaseModel):
     diff_stat: str = ""
 
 
+# --- repo.* (extended) -----------------------------------------------------
+class FileListEntry(BaseModel):
+    name: str
+    type: str  # "file" | "dir"
+    size: int = 0
+
+
+class DirListing(BaseModel):
+    path: str
+    entries: list[FileListEntry] = Field(default_factory=list)
+
+
+class CommitEntry(BaseModel):
+    hash: str
+    message: str
+
+
+class OutlineItem(BaseModel):
+    type: str  # "class" | "function" | "method"
+    name: str
+    line: int
+    docstring_preview: str = ""
+
+
+# --- analysis.* ------------------------------------------------------------
+class TodoItem(BaseModel):
+    path: str
+    line: int
+    text: str
+    kind: str  # "TODO" | "FIXME" | "HACK" | "XXX"
+
+
+class ComplexityItem(BaseModel):
+    name: str
+    complexity: int
+    line: int = 0
+
+
+# --- doc.* -----------------------------------------------------------------
+class DocSection(BaseModel):
+    heading: str
+    content: str
+
+
+# --- state.* ---------------------------------------------------------------
+class MetricRecord(BaseModel):
+    key: str
+    value: float
+
+
 # --- generic envelope ------------------------------------------------------
 class ToolOutcome(BaseModel):
     """Uniform envelope every tool wraps its typed payload in.

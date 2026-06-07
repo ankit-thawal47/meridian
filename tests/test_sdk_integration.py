@@ -23,12 +23,40 @@ from .conftest import make_state  # noqa: E402
 
 
 def test_registry_builds_expected_names(tmp_path: Any) -> None:
+    """Above RETRIEVAL_THRESHOLD the registry returns the retrieved top-k, and
+    every returned name is a valid, namespaced Meridian tool. tool_names must
+    stay in lock-step with what the MCP server exposes."""
+    from meridian.tools.analysis_tools import ANALYSIS_TOOL_NAMES
+    from meridian.tools.core_tools import CORE_TOOL_NAMES
+    from meridian.tools.doc_tools import DOC_TOOL_NAMES
+    from meridian.tools.issue_tools import ISSUE_TOOL_NAMES
+    from meridian.tools.retrieval import TOP_K
+
+    all_names = (
+        CORE_TOOL_NAMES + ANALYSIS_TOOL_NAMES + DOC_TOOL_NAMES + ISSUE_TOOL_NAMES
+    )
+    # The assignment requires 50+ tools across 4 namespaces.
+    assert len(all_names) == 50
+    assert len(set(all_names)) == 50  # no duplicate/near-identical names
+
     ctx = ToolContext(workspace=tmp_path, state=make_state())
     reg = build_registry(ctx)
-    from meridian.tools.core_tools import CORE_TOOL_NAMES
 
-    assert reg.tool_names == [f"mcp__meridian__{n}" for n in CORE_TOOL_NAMES]
+    # Retrieval is active: exactly TOP_K tools are loaded this task.
+    assert len(reg.tool_names) == TOP_K
+    valid = {f"mcp__meridian__{n}" for n in all_names}
+    assert set(reg.tool_names) <= valid
     assert reg.server is not None
+
+
+def test_registry_eager_loads_below_threshold(monkeypatch: Any, tmp_path: Any) -> None:
+    """Below the threshold every tool is eager-loaded (no retrieval)."""
+    import meridian.tools.registry as registry_mod
+
+    monkeypatch.setattr(registry_mod, "RETRIEVAL_THRESHOLD", 1000)
+    ctx = ToolContext(workspace=tmp_path, state=make_state())
+    reg = build_registry(ctx)
+    assert len(reg.tool_names) == 50
 
 
 def _fake_runner(**_kwargs: Any):

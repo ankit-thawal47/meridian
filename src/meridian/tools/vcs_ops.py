@@ -132,18 +132,37 @@ async def _create_github_pr(
 ) -> None:
     import httpx
 
-    async with httpx.AsyncClient(
-        base_url="https://api.github.com",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/vnd.github+json",
-        },
-        timeout=30,
-    ) as client:
-        await client.post(
-            f"/repos/{owner_repo}/pulls",
-            json={"title": draft.title, "body": draft.body, "head": draft.branch, "base": base},
-        )
+    from meridian.reliability.rate_limit import RateLimitedClient, record_retry_after
+
+    # Cap concurrent GitHub calls and honour any prior Retry-After (research §VIII.2).
+    async with RateLimitedClient("github_api", concurrency=3):
+        async with httpx.AsyncClient(
+            base_url="https://api.github.com",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/vnd.github+json",
+            },
+            timeout=30,
+        ) as client:
+            resp = await client.post(
+                f"/repos/{owner_repo}/pulls",
+                json={
+                    "title": draft.title,
+                    "body": draft.body,
+                    "head": draft.branch,
+                    "base": base,
+                },
+            )
+
+    if resp.status_code == 429:
+        # Honour the server's Retry-After rather than guessing a sleep duration.
+        retry_after = resp.headers.get("Retry-After", "60")
+        try:
+            seconds = float(int(retry_after))
+        except (TypeError, ValueError):
+            seconds = 60.0
+        record_retry_after("github_api", seconds)
+        raise RuntimeError(f"github rate limited (429); retry after {seconds:.0f}s")
 
 
 async def op_review_lint(ctx: ToolContext, args: dict[str, Any]) -> dict[str, Any]:

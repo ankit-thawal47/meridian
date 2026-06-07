@@ -24,7 +24,12 @@ def _tokens(text: str) -> list[str]:
 
 
 def _describe(tool: Any) -> str:
-    parts = [str(getattr(tool, "name", "")), str(getattr(tool, "__doc__", "") or "")]
+    # Real SDK tools carry their text in ``description``; test doubles use ``__doc__``.
+    parts = [
+        str(getattr(tool, "name", "")),
+        str(getattr(tool, "description", "") or ""),
+        str(getattr(tool, "__doc__", "") or ""),
+    ]
     return " ".join(parts)
 
 
