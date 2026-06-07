@@ -9,9 +9,7 @@ The SDK owns the agentic loop; this module configures it so that:
 
 from __future__ import annotations
 
-from typing import Any
-
-from claude_agent_sdk import ClaudeAgentOptions, PermissionResultDeny
+from claude_agent_sdk import ClaudeAgentOptions
 
 from meridian.agent.subagents import build_security_subagent_definition
 from meridian.config import get_settings
@@ -55,17 +53,6 @@ Security:
 """
 
 
-async def _deny_non_registry(
-    tool_name: str, input_data: dict[str, Any], context: Any
-) -> PermissionResultDeny:
-    # Registry tools are auto-approved via allowed_tools and never reach here;
-    # anything else is outside Meridian's contract.
-    return PermissionResultDeny(
-        message=f"{tool_name} is not part of Meridian's tool registry.",
-        interrupt=False,
-    )
-
-
 def build_options(ctx: ToolContext, registry: ToolRegistry) -> ClaudeAgentOptions:
     s = get_settings()
     return ClaudeAgentOptions(
@@ -73,7 +60,6 @@ def build_options(ctx: ToolContext, registry: ToolRegistry) -> ClaudeAgentOption
         mcp_servers={SERVER_NAME: registry.server},
         allowed_tools=registry.tool_names,
         disallowed_tools=_BLOCKED_BUILTINS,
-        can_use_tool=_deny_non_registry,
         hooks=build_security_hooks(),  # type: ignore[arg-type]  # W1: path-guard + secret-scrub
         agents={"security_reviewer": build_security_subagent_definition()},  # W3
         permission_mode="default",

@@ -16,6 +16,7 @@ from fastapi import FastAPI
 
 from meridian.api.routes_tasks import router as tasks_router
 from meridian.api.routes_tasks import webhook_router
+from meridian.api.ui import router as ui_router
 from meridian.config import get_settings
 from meridian.persistence.db import init_db
 
@@ -34,6 +35,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Meridian", version="0.1.0", lifespan=lifespan)
     app.include_router(tasks_router)
     app.include_router(webhook_router)
+    app.include_router(ui_router)
 
     @app.get("/health")
     async def health() -> dict[str, str]:
