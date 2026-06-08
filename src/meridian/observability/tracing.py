@@ -19,7 +19,7 @@ def _now() -> datetime:
 @dataclass
 class SpanRecord:
     task_id: str
-    kind: str  # "model_turn" | "tool_call" | "result"
+    kind: str  # "model_turn" | "tool_call" | "tool_result" | "result"
     name: str
     summary: str = ""
     cost_usd: float = 0.0
@@ -28,9 +28,10 @@ class SpanRecord:
     duration_ms: float = 0.0
     input_tokens: int = 0
     output_tokens: int = 0
+    turn_num: int = 0
     # OTel GenAI semantic-convention attributes, e.g. "gen_ai.request.model",
     # "gen_ai.usage.input_tokens", "gen_ai.usage.output_tokens",
-    # "gen_ai.operation.name".
+    # "gen_ai.operation.name", "tool.input", "tool.output".
     attributes: dict[str, Any] = field(default_factory=dict)
 
 

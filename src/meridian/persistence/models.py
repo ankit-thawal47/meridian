@@ -43,11 +43,14 @@ class TraceSpan(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     task_id: Mapped[str] = mapped_column(ForeignKey("tasks.id"), index=True)
-    kind: Mapped[str] = mapped_column(String(32))  # model_turn | tool_call | result
+    kind: Mapped[str] = mapped_column(String(32))  # model_turn | tool_call | tool_result | result
     name: Mapped[str] = mapped_column(String(128))
     summary: Mapped[str] = mapped_column(Text, default="")
     cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
     outcome: Mapped[str] = mapped_column(String(32), default="ok")
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+    turn_num: Mapped[int] = mapped_column(Integer, default=0)
+    # Structured OTel attributes: tool.input, tool.output, gen_ai.request.model, etc.
+    attributes: Mapped[dict] = mapped_column(JSON, default=dict)
 
     task: Mapped[Task] = relationship(back_populates="spans")

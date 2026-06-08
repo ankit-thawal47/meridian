@@ -13,6 +13,7 @@ plain stub objects.
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from typing import Any
@@ -59,22 +60,35 @@ def _blocks(msg: Any) -> list[Any]:
     return content if isinstance(content, list) else []
 
 
+def _args_preview(tool_input: dict[str, Any]) -> str:
+    """Compact representation of tool args with actual values, not just keys."""
+    parts = []
+    for k, v in list((tool_input or {}).items())[:4]:
+        v_str = str(v)
+        parts.append(f"{k}={v_str[:80]!r}" if len(v_str) > 80 else f"{k}={v!r}")
+    return ", ".join(parts)
+
+
 async def _handle_message(
     state: TaskState, msg: Any, sink: TraceSink | None, settings: Any | None = None
 ) -> None:
-    # Assistant turn: count it and emit spans for text + tool selections.
-    if type(msg).__name__ == "AssistantMessage" or _blocks(msg):
+    msg_type = type(msg).__name__
+
+    # Assistant turn: tool selections + reasoning text.
+    if msg_type == "AssistantMessage" or (msg_type not in ("ToolResultMessage",) and _blocks(msg)):
         state.turns += 1
         for block in _blocks(msg):
             name = getattr(block, "name", None)
-            if name is not None:  # ToolUseBlock — a tool selection
-                tool_input = getattr(block, "input", {})
-                summary = f"{name}({', '.join(map(str, (tool_input or {}).keys()))})"
+            if name is not None:  # ToolUseBlock
+                tool_input = getattr(block, "input", {}) or {}
+                summary = f"{name}({_args_preview(tool_input)})"
                 if sink:
-                    attributes: dict[str, Any] = {"gen_ai.operation.name": "execute_tool"}
+                    attributes: dict[str, Any] = {
+                        "gen_ai.operation.name": "execute_tool",
+                        "tool.input": json.dumps(tool_input, default=str)[:800],
+                    }
                     if settings is not None:
                         from meridian.agent.routing import route_model
-
                         attributes["gen_ai.request.model"] = route_model(str(name), settings)
                     await sink.record(
                         SpanRecord(
@@ -83,14 +97,43 @@ async def _handle_message(
                             str(name),
                             summary,
                             attributes=attributes,
+                            turn_num=state.turns,
                         )
                     )
             else:
                 text = getattr(block, "text", None)
                 if text and sink:
                     await sink.record(
-                        SpanRecord(state.task_id, "model_turn", "assistant", text[:200])
+                        SpanRecord(
+                            state.task_id,
+                            "model_turn",
+                            "assistant",
+                            text[:1000],
+                            turn_num=state.turns,
+                        )
                     )
+
+    # Tool result turn: capture what each tool actually returned.
+    elif msg_type == "ToolResultMessage" or (msg_type == "UserMessage" and _blocks(msg)):
+        for block in _blocks(msg):
+            tool_use_id = getattr(block, "tool_use_id", None)
+            if tool_use_id is None:
+                continue
+            content = getattr(block, "content", "") or ""
+            if isinstance(content, list):
+                content = " ".join(getattr(b, "text", "") for b in content if hasattr(b, "text"))
+            output_preview = str(content)[:800]
+            if sink:
+                await sink.record(
+                    SpanRecord(
+                        state.task_id,
+                        "tool_result",
+                        str(tool_use_id)[:64],
+                        output_preview[:300],
+                        attributes={"tool.output": output_preview},
+                        turn_num=state.turns,
+                    )
+                )
 
 
 def _finalize(state: TaskState, final: Any | None) -> OrchestratorResult:

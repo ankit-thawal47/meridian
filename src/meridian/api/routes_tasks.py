@@ -46,6 +46,9 @@ class SpanView(BaseModel):
     summary: str
     cost_usd: float
     outcome: str
+    turn_num: int = 0
+    ts: str = ""
+    attributes: dict = {}
 
 
 @router.post("", response_model=CreateTaskResponse)
@@ -81,7 +84,14 @@ async def trace(task_id: str, session: AsyncSession = Depends(get_session)) -> l
     spans = await get_spans(session, task_id)
     return [
         SpanView(
-            kind=s.kind, name=s.name, summary=s.summary, cost_usd=s.cost_usd, outcome=s.outcome
+            kind=s.kind,
+            name=s.name,
+            summary=s.summary,
+            cost_usd=s.cost_usd,
+            outcome=s.outcome,
+            turn_num=s.turn_num or 0,
+            ts=s.ts.isoformat() if s.ts else "",
+            attributes=s.attributes or {},
         )
         for s in spans
     ]

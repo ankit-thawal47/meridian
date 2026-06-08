@@ -68,6 +68,8 @@ class DbTraceSink:
                     cost_usd=span.cost_usd,
                     outcome=span.outcome,
                     ts=span.ts,
+                    turn_num=span.turn_num,
+                    attributes=span.attributes or {},
                 )
             )
             await session.commit()

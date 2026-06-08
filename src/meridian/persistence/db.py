@@ -21,11 +21,17 @@ def _init() -> None:
 
 
 async def init_db() -> None:
-    """Create tables. Phase 0 convenience; Alembic owns migrations from Phase 2."""
+    """Create tables and apply additive column migrations idempotently."""
     _init()
     assert _engine is not None
     async with _engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Additive migrations: ADD COLUMN IF NOT EXISTS is idempotent in Postgres.
+        for stmt in [
+            "ALTER TABLE trace_spans ADD COLUMN IF NOT EXISTS turn_num INTEGER DEFAULT 0",
+            "ALTER TABLE trace_spans ADD COLUMN IF NOT EXISTS attributes JSONB DEFAULT '{}'",
+        ]:
+            await conn.execute(__import__("sqlalchemy").text(stmt))
 
 
 def session_factory() -> async_sessionmaker[AsyncSession]:

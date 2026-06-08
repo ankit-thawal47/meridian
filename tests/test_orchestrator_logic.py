@@ -91,5 +91,6 @@ def test_run_with_retry_records_50_plus_tool_calls() -> None:
     assert len(tool_spans) == 60
     assert st.turns == 60
     assert final.total_cost_usd == 0.42
-    assert tool_spans[0].summary == "mcp__meridian__repo_search(query, max_results)"
-    assert tool_spans[-1].summary == "mcp__meridian__repo_search(query, max_results)"
+    # Summary now includes actual arg values, not just key names.
+    assert tool_spans[0].summary.startswith("mcp__meridian__repo_search(")
+    assert tool_spans[-1].summary.startswith("mcp__meridian__repo_search(")
