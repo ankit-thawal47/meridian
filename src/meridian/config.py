@@ -72,6 +72,25 @@ class Settings(BaseSettings):
         "", validation_alias=AliasChoices("github_token", "MERIDIAN_GITHUB_TOKEN")
     )
 
+    # Azure AI Foundry — optional. When set, the Claude Agent SDK routes through
+    # Azure's hosted Claude endpoint instead of Anthropic's API directly.
+    # Get these from: Azure AI Foundry → your project → Models → Claude deployment.
+    azure_ai_foundry_endpoint: str = Field(
+        "", validation_alias=AliasChoices("azure_ai_foundry_endpoint", "AZURE_AI_FOUNDRY_ENDPOINT")
+    )
+    azure_ai_foundry_key: str = Field(
+        "", validation_alias=AliasChoices("azure_ai_foundry_key", "AZURE_AI_FOUNDRY_KEY")
+    )
+
+    # Azure Monitor — optional. When set, spans are also forwarded to App Insights.
+    azure_application_insights_connection_string: str = Field(
+        "",
+        validation_alias=AliasChoices(
+            "azure_application_insights_connection_string",
+            "APPLICATIONINSIGHTS_CONNECTION_STRING",
+        ),
+    )
+
 
 @lru_cache
 def get_settings() -> Settings:

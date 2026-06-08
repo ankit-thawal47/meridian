@@ -13,6 +13,7 @@ from arq.connections import RedisSettings
 
 from meridian.agent.task_state import TaskState, TaskStatus
 from meridian.config import get_settings
+from meridian.observability.tracing import TraceSink
 from meridian.persistence.db import init_db, session_factory
 from meridian.persistence.repository import DbTraceSink, get_task, save_state
 from meridian.repo.workspace import prepare_workspace
@@ -33,7 +34,22 @@ async def run_meridian_task(ctx: dict[str, Any], task_id: str) -> str:
         task_id=task_id, repo=repo, issue_ref=issue_ref, goal=goal, status=TaskStatus.running
     )
     tool_ctx = ToolContext(workspace=workspace, state=state)
-    sink = DbTraceSink(sessionmaker=sm)
+
+    # Build sink: Postgres always; Azure App Insights when configured.
+    db_sink = DbTraceSink(sessionmaker=sm)
+    s = get_settings()
+    if s.azure_application_insights_connection_string:
+        from meridian.observability.azure_sink import AzureAppInsightsSink
+
+        class _FanOutSink:
+            async def record(self, span: TraceSink) -> None:  # type: ignore[override]
+                await db_sink.record(span)  # type: ignore[arg-type]
+                await azure_sink.record(span)  # type: ignore[arg-type]
+
+        azure_sink = AzureAppInsightsSink(s.azure_application_insights_connection_string)
+        sink: TraceSink = _FanOutSink()  # type: ignore[assignment]
+    else:
+        sink = db_sink
 
     result = await run_task(tool_ctx, sink=sink)
 

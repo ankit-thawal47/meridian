@@ -55,6 +55,15 @@ Security:
 
 def build_options(ctx: ToolContext, registry: ToolRegistry) -> ClaudeAgentOptions:
     s = get_settings()
+    # When Azure AI Foundry is configured, route through the Azure-hosted Claude
+    # endpoint. The SDK's underlying Anthropic client accepts base_url + api_key
+    # overrides — no change to the agent loop, tools, or schemas required.
+    extra: dict = {}
+    if s.azure_ai_foundry_endpoint and s.azure_ai_foundry_key:
+        extra["anthropic_client_kwargs"] = {
+            "base_url": s.azure_ai_foundry_endpoint,
+            "api_key": s.azure_ai_foundry_key,
+        }
     return ClaudeAgentOptions(
         system_prompt=SYSTEM_PROMPT.format(server=SERVER_NAME),
         mcp_servers={SERVER_NAME: registry.server},
@@ -69,4 +78,5 @@ def build_options(ctx: ToolContext, registry: ToolRegistry) -> ClaudeAgentOption
         max_turns=s.max_turns,
         cwd=str(ctx.workspace),
         setting_sources=[],  # hermetic: ignore any filesystem CLAUDE.md/settings
+        **extra,
     )
